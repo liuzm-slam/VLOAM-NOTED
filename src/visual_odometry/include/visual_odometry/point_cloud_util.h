@@ -51,6 +51,11 @@ public:
   Eigen::Matrix4f cam_T_velo;   // T_velo^cam or cam_T_velo // TODO: rewrite related functions using Eigen::isometry or
                                 // Eigen::Transforma; https://eigen.tuxfamily.org/dox/classEigen_1_1Transform.html
   Eigen::Matrix4f rect0_T_cam;  // T_cam0^rect0 or rect0_T_cam0 // NOTE: typedef Transform<float,3,Isometry> Isometry3f
+  // P_rect0 3*4 相机的内参
+  // # Projection/camera matrix
+  //      [fx'  0  cx' Tx]
+  //  P = [ 0  fy' cy' Ty]
+  //      [ 0   0   1   0]
   Eigen::MatrixXf P_rect0;      // TODO: combine the 3 transformations into 1 3x4 matrix
 
   Eigen::MatrixXf point_cloud_3d_tilde;  // row size is dynamic, and will be decided when load the point cloud; column

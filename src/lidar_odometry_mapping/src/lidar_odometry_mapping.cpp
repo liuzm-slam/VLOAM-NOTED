@@ -70,15 +70,21 @@ void LidarOdometryMapping::reset()
   laser_mapping.reset();
 }
 
+/**
+ * @description: 对输入的原始点云进行处理，得到边缘点的点云和平面点的点云，并发布
+ * @param laserCloudIn laserCloudIn
+ */
 void LidarOdometryMapping::scanRegistrationIO(const pcl::PointCloud<pcl::PointXYZ>& laserCloudIn)
 {
   loam_timer.tic();
   frame_time = 0.0;
 
+  // 计算激光点的曲率，划分点云激光点到平面点和边缘点
   scan_registration.input(laserCloudIn);
 
   // scan_registration.publish(); // no need to publish the point cloud feature
 
+  // 发布分割后的激光点云
   scan_registration.output(laserCloud,             // 10Hz
                            cornerPointsSharp,      // 10Hz
                            cornerPointsLessSharp,  // 10Hz
@@ -93,10 +99,19 @@ void LidarOdometryMapping::scanRegistrationIO(const pcl::PointCloud<pcl::PointXY
   frame_time += loam_timer.toc();
 }
 
+/**
+ * @description: 
+ * @param laserCloud:           
+ * @param cornerPointsSharp:     
+ * @param cornerPointsLessSharp: 
+ * @param surfPointsFlat: 
+ * @param surfPointsLessFlat:
+ */
 void LidarOdometryMapping::laserOdometryIO()
 {
   loam_timer.tic();
 
+  // 输入点云，创建智能指针
   laser_odometry.input(laserCloud,             // 10Hz
                        cornerPointsSharp,      // 10Hz
                        cornerPointsLessSharp,  // 10Hz
@@ -104,10 +119,13 @@ void LidarOdometryMapping::laserOdometryIO()
                        surfPointsLessFlat      // 10Hz
   );
 
+  // 上一帧激光数据和当前帧激光数据匹配得到一个先验的里程计位置估计
   laser_odometry.solveLO();  // 10Hz
 
+  // 发布激光里程计
   laser_odometry.publish();
 
+  // 输出里程计得到的当前帧和上一帧间位置转换关系
   laser_odometry.output(q_wodom_curr,          // 10Hz
                         t_wodom_curr,          // 10Hz
                         laserCloudCornerLast,  // 2Hz // no change if skip_frame
@@ -122,10 +140,12 @@ void LidarOdometryMapping::laserOdometryIO()
   frame_time += loam_timer.toc();
 }
 
+// 
 void LidarOdometryMapping::laserMappingIO()
 {
   loam_timer.tic();
 
+  // 创建智能指针，并且为本次当前帧和submap对齐提供一个初始位姿转换关系
   laser_mapping.input(laserCloudCornerLast,  // 2Hz
                       laserCloudSurfLast,    // 2Hz
                       laserCloudFullRes,     // 2Hz
@@ -134,8 +154,10 @@ void LidarOdometryMapping::laserMappingIO()
                       skip_frame);
 
   if (!skip_frame)
+    // 当前帧与submap匹配得到机器人位姿转换关系
     laser_mapping.solveMapping();  // 2Hz
 
+  // 发布激光里程计的位姿转换关系
   laser_mapping.publish();
 
   // laser_odometry.output(

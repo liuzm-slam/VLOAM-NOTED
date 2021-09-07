@@ -14,6 +14,9 @@ void VloamTF::init()
   world_stamped_VOtf_base.transform = tf2::toMsg(world_VOT_base_last);
 }
 
+/**
+ * @description: 监听tf变换
+ */
 void VloamTF::processStaticTransform()
 {
   // initial base to world is static as identity transform

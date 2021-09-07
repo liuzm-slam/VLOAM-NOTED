@@ -99,7 +99,6 @@ void VisualOdometry::reset()
 /**
  * @description: 对图像进行处理，使用光流法或者描述子对相邻两帧图像匹配
  * @param img00 输入图像
- * @return {*}
  */
 void VisualOdometry::processImage(const cv::Mat& img00)
 {
@@ -173,6 +172,11 @@ void VisualOdometry::setUpPointCloud(const sensor_msgs::CameraInfoConstPtr& came
   // point from rectified camera 00 to image coordinate
   for (j = 0; j < 12; ++j)
   {
+    // P_rect0 3*4 相机的内参
+    // # Projection/camera matrix
+    //      [fx'  0  cx' Tx]
+    //  P = [ 0  fy' cy' Ty]
+    //      [ 0   0   1   0]
     point_cloud_utils[0].P_rect0(j / 4, j % 4) = camera_info_msg->P[j];  // TODO: optimize this code later
     point_cloud_utils[1].P_rect0(j / 4, j % 4) = camera_info_msg->P[j];  // assume P doesn't change
   }
@@ -181,10 +185,18 @@ void VisualOdometry::setUpPointCloud(const sensor_msgs::CameraInfoConstPtr& came
   ROS_INFO("Setting up point cloud took %f ms +++++\n", t_set_up_point_cloud.toc());
 }
 
+/**
+ * @description: 处理激光点云，把点云数据投影到相机坐标系下并且可视化深度图
+ * @param point_cloud_msg ros pointcloud2 激光点云
+ * @param point_cloud_pcl pcl 激光点云
+ * @param visualize_depth 是否要转换成深度图
+ * @param publish_point_cloud 是否发布点云
+ */
 void VisualOdometry::processPointCloud(const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg,
                                        const pcl::PointCloud<pcl::PointXYZ>& point_cloud_pcl,
                                        const bool& visualize_depth, const bool& publish_point_cloud)
 {
+  // 处理激光点云时间
   TicToc t_process_point_cloud;
 
   point_cloud_3d_tilde = Eigen::MatrixXf::Ones(point_cloud_pcl.size(), 4);
@@ -194,12 +206,16 @@ void VisualOdometry::processPointCloud(const sensor_msgs::PointCloud2ConstPtr& p
     point_cloud_3d_tilde(j, 1) = point_cloud_pcl.points[j].y;
     point_cloud_3d_tilde(j, 2) = point_cloud_pcl.points[j].z;
   }
+  // 把当前激光点云赋值到point_cloud_utils（是一个vector<vloam::PointCloudUtil>）
   point_cloud_utils[i].point_cloud_3d_tilde = point_cloud_3d_tilde;
+  // 对激光点云进行投影操作，把激光重激光雷达坐标系转换到相机坐标系然后筛选
   point_cloud_utils[i].projectPointCloud();
+  // 在相机视野范围内对激光数据处理,对数据进行下采样，并且把激光点投影到相机视野范围内的图像中
   point_cloud_utils[i].downsamplePointCloud();
-  if (visualize_depth)
+  if (visualize_depth) // visualize_depth bool
     point_cloud_utils[i].visualizeDepth(images[i]);  // uncomment this for depth visualization, but remember to reduce
                                                      // the bag playing speed too
+  // 发布原始激光点云
   if (publish_point_cloud)
   {
     sensor_msgs::PointCloud2 point_cloud_in_VO_msg = *point_cloud_msg;
@@ -212,6 +228,9 @@ void VisualOdometry::processPointCloud(const sensor_msgs::PointCloud2ConstPtr& p
   ROS_INFO("Processing point cloud took %f ms +++++\n", t_process_point_cloud.toc());
 }
 
+/**
+ * @description: 没有使用
+ */
 void VisualOdometry::solveRANSAC()
 {  // TODO: consider KLT case =>  it's not working with KLT
   TicToc t_ransac;
@@ -228,6 +247,7 @@ void VisualOdometry::solveRANSAC()
   }
 
   cv::Mat camera_matrix;
+  // eigen转matrix
   cv::eigen2cv(point_cloud_utils[0].P_rect0, camera_matrix);
   // std::cout << camera_matrix << std::endl;
   camera_matrix = camera_matrix.colRange(0, 3);
@@ -278,6 +298,9 @@ void VisualOdometry::solveRANSAC()
   ROS_INFO("RANSAC VO took %f ms +++++\n", t_ransac.toc());
 }
 
+/**
+ * @description: ceres求解
+ */
 void VisualOdometry::solveNlsAll()
 {
   TicToc t_nls_all;
@@ -285,6 +308,7 @@ void VisualOdometry::solveNlsAll()
   ceres::LossFunction* loss_function = new ceres::HuberLoss(0.1);
   ceres::Problem problem;
 
+  // 初始化机器人位置和角度
   if (reset_VO_to_identity)
   {
     for (j = 0; j < 3; ++j)
@@ -295,7 +319,7 @@ void VisualOdometry::solveNlsAll()
   }
   else
   {
-    // init from LO
+    // init from LO，通过tf2关系获得坐标转换关系
     t_0to1[0] = vloam_tf->cam0_curr_LOT_cam0_prev.getOrigin().getX();
     t_0to1[1] = vloam_tf->cam0_curr_LOT_cam0_prev.getOrigin().getY();
     t_0to1[2] = vloam_tf->cam0_curr_LOT_cam0_prev.getOrigin().getZ();
@@ -309,7 +333,9 @@ void VisualOdometry::solveNlsAll()
 
   int prev_pt_x, prev_pt_y, curr_pt_x, curr_pt_y;
   int counter33 = 0, counter32 = 0, counter23 = 0, counter22 = 0;
+  // 根据选择的匹配方式获得相机匹配特征数量大小
   int match_num = (optical_flow_match) ? keypoints_2f[i].size() : matches.size();
+  // 根据匹配算法的不同把视觉上一帧特征和当前特征赋值到prev_pt_x, prev_pt_y, curr_pt_x, curr_pt_y
   for (int j = 0; j < match_num; ++j)
   {  // ~ n=1400 matches
 
@@ -333,6 +359,7 @@ void VisualOdometry::solveNlsAll()
         continue;
     }
 
+    // 当前帧和上一帧特征间的距离判断与阈值的关系，如果大于移除ß
     if (remove_VO_outlier > 0)
     {
       if (std::pow(prev_pt_x - curr_pt_x, 2) + std::pow(prev_pt_y - curr_pt_y, 2) >
@@ -340,6 +367,7 @@ void VisualOdometry::solveNlsAll()
         continue;
     }
 
+    // 使用图像特征点坐标为索引在激光点云中得到该特征点的深度值
     depth0 = point_cloud_utils[1 - i].queryDepth(prev_pt_x, prev_pt_y);
     depth1 = point_cloud_utils[i].queryDepth(curr_pt_x, curr_pt_y);
 
@@ -371,9 +399,12 @@ void VisualOdometry::solveNlsAll()
     // else if (depth0 > 0.5 and depth1 <= 0.5) {
     if (depth0 > 0)
     {
-      point_3d_image0_0 << prev_pt_x * depth0, prev_pt_y * depth0, depth0;
+      // 当前图像平面的特征点，（x,y,depth）
+      point_3d_image0_0 << prev_pt_x * depth0, prev_pt_y * depth0, depth0; // 其次坐标
       point_3d_image0_1 << curr_pt_x, curr_pt_y, 1.0f;
 
+      // Eigen矩阵colPivHouseholderQr().solve()求解Ax=b，leftCols(3)前3列
+      // 下面两行通过得到的世界坐标值由内参反推到像素坐标值
       point_3d_rect0_0 =
           (point_cloud_utils[1 - i].P_rect0.leftCols(3)).colPivHouseholderQr().solve(point_3d_image0_0);  // assume
                                                                                                           // point_cloud_utils[i].P_rect0.col(3)
@@ -385,6 +416,7 @@ void VisualOdometry::solveNlsAll()
 
       // assert(std::abs(point_3d_rect0_0(2) - depth0) < 0.0001);
 
+      // 计算重投影误差
       ceres::CostFunction* cost_function = vloam::CostFunctor32::Create(
           static_cast<double>(point_3d_rect0_0(0)), static_cast<double>(point_3d_rect0_0(1)),
           static_cast<double>(point_3d_rect0_0(2)),

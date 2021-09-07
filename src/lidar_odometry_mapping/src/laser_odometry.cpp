@@ -192,6 +192,9 @@ void LaserOdometry::TransformToEnd(PointType const* const pi, PointType* const p
   po->intensity = int(pi->intensity);
 }
 
+/**
+ * @description: 上一帧激光数据和当前帧激光数据匹配得到一个先验的里程计位置估计
+ */
 void LaserOdometry::solveLO()
 {
   // this->reset();
@@ -578,6 +581,7 @@ void LaserOdometry::solveLO()
   frameCount++;
 }
 
+// 发布激光里程计
 void LaserOdometry::publish()
 {
   TicToc t_pub;
@@ -650,6 +654,7 @@ void LaserOdometry::publish()
   }
 }
 
+// 输出里程计得到的当前帧和上一帧间位置转换关系
 void LaserOdometry::output(Eigen::Quaterniond& q_w_curr_, Eigen::Vector3d& t_w_curr_,
                            pcl::PointCloud<PointType>::Ptr& laserCloudCornerLast_,
                            pcl::PointCloud<PointType>::Ptr& laserCloudSurfLast_,

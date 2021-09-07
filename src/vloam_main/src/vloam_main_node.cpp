@@ -123,6 +123,7 @@ void init(const vloam_main::vloam_mainGoalConstPtr& goal)
   VO->init(vloam_tf);
   LOAM->init(vloam_tf);
 }
+
 /**
  * @description: 调用ros时间同步函数对三种数据进行时间同步操作
  * @param image_msg 输入图像
@@ -159,11 +160,14 @@ void callback(const sensor_msgs::Image::ConstPtr& image_msg, const sensor_msgs::
   pcl::fromROSMsg(*point_cloud_msg, point_cloud_pcl);  // optimization can be applied if pcl library is not necessarily
   // ROS_INFO("point cloud width=%d, height=%d", point_cloud_pcl.width, point_cloud_pcl.height); // typical output
   // "point cloud width=122270, height=1053676" // TODO: check why height is so large
+  // 处理激光点云，把点云数据投影到相机坐标系下并且可视化深度图
   VO->processPointCloud(point_cloud_msg, point_cloud_pcl, visualize_depth, publish_point_cloud);
 
   // Section 4: Solve and Publish VO
   if (count > 0)
   {
+    // ceres求解，得到相机特征的重投影误差，得到相机计算的（R，t），处理过程相当于一个RGBD相机，
+    // 激光雷达计算深度，图像进行匹配
     VO->solveNlsAll();  // result is cam0_curr_T_cam0_last, f2f odometry
                         // VO->solveNls2dOnly();
                         // VO->solveRANSAC();
@@ -171,11 +175,15 @@ void callback(const sensor_msgs::Image::ConstPtr& image_msg, const sensor_msgs::
   vloam_tf->VO2VeloAndBase(VO->cam0_curr_T_cam0_last);                             // transform f2f VO to world VO
   vloam_tf->dynamic_broadcaster.sendTransform(vloam_tf->world_stamped_VOtf_base);  // publish for visualization // can
                                                                                    // be commented out
+  // 发布视觉里程计
   VO->publish();                                                                   // publish nav_msgs::odometry
 
   // Section 5: Solve and Publish LO MO
+  // 对输入的原始点云进行处理，得到边缘点的点云和平面点的点云
   LOAM->scanRegistrationIO(point_cloud_pcl);
+  // 激光里程计计算连续两帧激光数据的位姿
   LOAM->laserOdometryIO();
+  // 当前帧与submap匹配获得机器人在连续时刻的位置变换关系
   LOAM->laserMappingIO();
 
   // Section 6, save odoms

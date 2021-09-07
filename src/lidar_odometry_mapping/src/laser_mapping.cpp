@@ -174,6 +174,7 @@ namespace vloam
     po->intensity = pi->intensity;
   }
 
+  // 创建智能指针，并且为本次当前帧和submap对齐提供一个初始位姿转换关系
   void LaserMapping::input(const pcl::PointCloud<PointType>::Ptr &laserCloudCornerLast_,
                            const pcl::PointCloud<PointType>::Ptr &laserCloudSurfLast_,
                            const pcl::PointCloud<PointType>::Ptr &laserCloudFullRes_,
@@ -207,6 +208,7 @@ namespace vloam
     }
   }
 
+  // 当前帧与submap匹配得到机器人位姿转换关系
   void LaserMapping::solveMapping()
   {
     // this->reset();
@@ -222,12 +224,15 @@ namespace vloam
       调整之后取值范围:3 < centerCubeI < 18， 3 < centerCubeJ < 8, 3 < centerCubeK < 18 
   */
     TicToc t_shift;
+    // 在submap.png文件中，为机器人当前位置在子地图中的位置，下面操作的目的为了使机器人在子地图中心，使用当前帧激光和submap进行特征匹配
     int centerCubeI = int((t_w_curr.x() + 25.0) / 50.0) + laserCloudCenWidth;
     int centerCubeJ = int((t_w_curr.y() + 25.0) / 50.0) + laserCloudCenHeight;
     int centerCubeK = int((t_w_curr.z() + 25.0) / 50.0) + laserCloudCenDepth;
 
-    /*   由于计算机求余是向零取整，为了不使（-50.0,50.0）求余后都向零偏移，
-  当被求余数为负数时求余结果统一向左偏移一个单位，也即减一 */
+    /*   
+      由于计算机求余是向零取整，为了不使（-50.0,50.0）求余后都向零偏移，
+      当被求余数为负数时求余结果统一向左偏移一个单位，也即减一 
+    */
     if (t_w_curr.x() + 25.0 < 0)
       centerCubeI--;
     if (t_w_curr.y() + 25.0 < 0)
@@ -235,10 +240,10 @@ namespace vloam
     if (t_w_curr.z() + 25.0 < 0)
       centerCubeK--;
 
-  /*   
-    调整边缘位置向中心移动，确保位姿在cube中的相对位置有555的邻域
-    如果处于下边界，表明地图向负方向延伸的可能性比较大，则循环移位，将数组中心点向上边界调整一个单位 
-  */
+    /*   
+      调整边缘位置向中心移动，确保位姿在cube中的相对位置有555的邻域
+      如果处于下边界，表明地图向负方向延伸的可能性比较大，则循环移位，将数组中心点向上边界调整一个单位 
+    */
     // 以下注释部分参照LOAM_NOTED，结合我画的submap的示意图说明下面的6个while loop的作用：要
     // 注意世界坐标系下的点云地图是固定的，但是IJK坐标系我们是可以移动的，所以这6个while loop
     // 的作用就是调整IJK坐标系（也就是调整所有cube位置），使得五角星在IJK坐标系的坐标范围处于

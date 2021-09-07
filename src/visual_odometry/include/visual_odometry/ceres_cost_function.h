@@ -25,13 +25,16 @@ struct CostFunctor33
   template <typename T>
   bool operator()(const T* const angles, const T* const t, T* residuals) const
   {
+    // 上一帧的像素点转换到当前帧坐标系下的点，先验值
     T point3d_0to1[3];
+    // 当前帧激光点进行转换操作
     T point3d_0[3] = { T(observed_x0), T(observed_y0), T(observed_z0) };
     ceres::AngleAxisRotatePoint(angles, point3d_0, point3d_0to1);
     point3d_0to1[0] += t[0];
     point3d_0to1[1] += t[1];
     point3d_0to1[2] += t[2];
 
+    // 距离残差，当前帧的像素坐标和先验值间的距离关系
     residuals[0] = point3d_0to1[0] - T(observed_x1);
     residuals[1] = point3d_0to1[1] - T(observed_y1);
     residuals[2] = point3d_0to1[2] - T(observed_z1);
@@ -39,6 +42,7 @@ struct CostFunctor33
     return true;
   }
 
+  // 计算视觉重投影误差
   static ceres::CostFunction* Create(const double observed_x0, const double observed_y0, const double observed_z0,
                                      const double observed_x1, const double observed_y1, const double observed_z1)
   {
