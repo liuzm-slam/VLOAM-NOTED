@@ -194,6 +194,7 @@ void LaserOdometry::TransformToEnd(PointType const* const pi, PointType* const p
 
 /**
  * @description: 上一帧激光数据和当前帧激光数据匹配得到一个先验的里程计位置估计
+ *               使用视觉得到的估计机器人坐标位置关系给定一个激光里程计的初始位置值
  */
 void LaserOdometry::solveLO()
 {
@@ -232,6 +233,7 @@ void LaserOdometry::solveLO()
 
       ceres::Problem problem(problem_options);
 
+      // 使用视觉得到的估计机器人坐标位置关系给定一个激光里程计的初始位置值
       if (!detach_VO_LO)
       {
         para_q[0] = vloam_tf->velo_last_VOT_velo_curr.getRotation().x();

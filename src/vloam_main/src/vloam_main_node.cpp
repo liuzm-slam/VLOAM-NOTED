@@ -172,13 +172,16 @@ void callback(const sensor_msgs::Image::ConstPtr& image_msg, const sensor_msgs::
                         // VO->solveNls2dOnly();
                         // VO->solveRANSAC();
   }
+  // 视觉计算的机器人位姿转换关系
   vloam_tf->VO2VeloAndBase(VO->cam0_curr_T_cam0_last);                             // transform f2f VO to world VO
+  // 使用tf2对视觉位姿转换关系广播出来
   vloam_tf->dynamic_broadcaster.sendTransform(vloam_tf->world_stamped_VOtf_base);  // publish for visualization // can
                                                                                    // be commented out
   // 发布视觉里程计
   VO->publish();                                                                   // publish nav_msgs::odometry
 
   // Section 5: Solve and Publish LO MO
+  // LO中使用的VO计算得到的机器人位姿转换关系（通过tf2），作为一个先验值
   // 对输入的原始点云进行处理，得到边缘点的点云和平面点的点云
   LOAM->scanRegistrationIO(point_cloud_pcl);
   // 激光里程计计算连续两帧激光数据的位姿

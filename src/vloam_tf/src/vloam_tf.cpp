@@ -59,6 +59,10 @@ void VloamTF::processStaticTransform()
   velo_T_cam0 = imu_T_velo.inverse() * imu_T_cam0;
 }
 
+/**
+ * @description: 视觉计算的位姿变换关系
+ * @param: cam0_curr_VOT_cam0_last
+ */
 void VloamTF::VO2VeloAndBase(const tf2::Transform &cam0_curr_VOT_cam0_last)
 {
   // get T_velo_last^velo_curr (from VO)
